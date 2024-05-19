@@ -131,7 +131,7 @@ def main():
         # 创建一个FileHandler,用于写入日志文件
         file_handler = logging.FileHandler('attack.log')
         # 设置文件日志格式
-        formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+        formatter = logging.Formatter('%(asctime)s - %(message)s')
         file_handler.setFormatter(formatter)
         # 添加文件日志处理器
         logger.addHandler(file_handler)
@@ -139,7 +139,6 @@ def main():
             for apk in tp_apks:
                 AdvDroidZero_attacker(apk, model, args.attack_num, output_result_dir,ps,logger)
         else: 
-            print(len(tp_apks))
             # with ThreadPoolExecutor(max_workers=config['nproc_attacker']) as executor:
             #     executor.map(AdvDroidZero_attacker,
             #               zip(tp_apks, repeat(model), repeat(args.attack_num), repeat(output_result_dir),repeat(ps)))
@@ -186,23 +185,23 @@ def prepare_res_save_dir(args):
     output_result_dir = os.path.join(config['results_dir'], args.dataset,
                                      "_".join([args.detection, args.classifier]),
                                      "_".join([args.attacker, str(args.attack_num)]))
-    if not os.path.exists(output_result_dir):
-        os.makedirs(output_result_dir, exist_ok=True)
-    else:
-        shutil.rmtree(output_result_dir)
-        os.makedirs(output_result_dir, exist_ok=True)
+    # if not os.path.exists(output_result_dir):
+    #     os.makedirs(output_result_dir, exist_ok=True)
+    # else:
+    #     shutil.rmtree(output_result_dir)
+    #     os.makedirs(output_result_dir, exist_ok=True)
 
-    # Save the success misclassified malicious APKs
-    if not os.path.exists(os.path.join(output_result_dir, "success")):
-        os.mkdir(os.path.join(output_result_dir, "success"))
+    # # Save the success misclassified malicious APKs
+    # if not os.path.exists(os.path.join(output_result_dir, "success")):
+    #     os.mkdir(os.path.join(output_result_dir, "success"))
 
-    # Save the fail misclassified malicious APKs
-    if not os.path.exists(os.path.join(output_result_dir, "fail")):
-        os.mkdir(os.path.join(output_result_dir, "fail"))
+    # # Save the fail misclassified malicious APKs
+    # if not os.path.exists(os.path.join(output_result_dir, "fail")):
+    #     os.mkdir(os.path.join(output_result_dir, "fail"))
 
-    # Save the malicious APKs which cannnot be modified
-    if not os.path.exists(os.path.join(output_result_dir, "modification_crash")):
-        os.mkdir(os.path.join(output_result_dir, "modification_crash"))
+    # # Save the malicious APKs which cannnot be modified
+    # if not os.path.exists(os.path.join(output_result_dir, "modification_crash")):
+    #     os.mkdir(os.path.join(output_result_dir, "modification_crash"))
 
     return output_result_dir
 

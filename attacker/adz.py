@@ -114,6 +114,8 @@ def extract_apk(apk_path, extract_dir):
 
 # 在 smali 文件中插入新代码
 def insert_line(smali_dir,caller,callee):
+    print(f"callee{callee}")
+    print(f"caller{caller}")
     # 编写新的 smali 代码
     new_code = f'''
     invoke-static {{}}, {parse_api_string(callee)}
@@ -182,15 +184,24 @@ def insert_invoke(action,parse_tmp, copy_apk_path,backup_dir,process_dir):
 
 def get_smali(action):
     # action对应的apk的解析位置
-    tmp_dir = f"/home/hlj/dev/shm/gnip/tmp/smali/{os.path.basename(action.apk_path.strip()).replace('.apk','')}/"
+    tmp_dir = f"/home/hlj/dev/shm/gnip/smali/{os.path.basename(action.apk_path.strip()).replace('.apk','')}/"
     if not os.path.exists(tmp_dir):
         cmd = f"apktool d {action.apk_path.strip()} -o {tmp_dir} -r -f"
         os.system(cmd)
     smali_path = f"{tmp_dir}/smali/{extract_class_name(action.caller)}.smali"
     i=1
-    while not os.path.exists(smali_path):
-        i+=1
-        smali_path = f"{tmp_dir}/smali_classes{i}/{extract_class_name(action.caller)}.smali"
+    try:
+        while not os.path.exists(smali_path):
+            i+=1
+            if i>100:
+                raise Exception(f"Error {smali_path}")
+            print(f"{tmp_dir}/smali_classes{i}/{extract_class_name(action.caller)}.smali")
+            smali_path = f"{tmp_dir}/smali_classes{i}/{extract_class_name(action.caller)}.smali"
+    except Exception as e:
+        print(f"Error in get_smali:{e}")
+        traceback.print_exc()
+        return False
+        
     # 打开对应smali文件，找到相应method
     with open(smali_path, 'r') as f:
         smali_content = f.readlines()
@@ -222,6 +233,8 @@ def load_smali(action):
         return file.readlines()
 
 def insert_smali_imp(parse_dir,ori_caller,action):
+    print(ori_caller)
+    print(action.caller)
     smali_content = ""
     if action.smali != None:
         smali_content = action.smali
@@ -244,9 +257,10 @@ def insert_smali_imp(parse_dir,ori_caller,action):
         i=1
         new_smali_path = f'{parse_dir}/smali/{dir}/{name}${i}.smali'
         while os.path.exists(new_smali_path):
+            print(f'{parse_dir}/smali/{dir}/{name}${i}.smali')
             i+=1 
             new_smali_path = f'{parse_dir}/smali/{dir}/{name}${i}.smali'
-            new_api = f"{action.caller.split('(')[0]}${i}{action.caller.split('(')[1]}"
+            new_api = f"{action.caller.split('(')[0]}${i}({action.caller.split('(')[1]}"
         smali_content[0] = smali_content[0].replace(';',f"${i};")
     # new_smali_path = f'{parse_dir}/smali/{dir}/{name}.smali'
     with open(new_smali_path,'w') as file:
@@ -292,6 +306,8 @@ def insert_code(smali_dir, ori_caller, node):
     smali_path = f"{smali_dir}/smali/{extract_class_name(ori_caller)}.smali"
     i=1
     while not os.path.exists(smali_path):
+        print(f"{smali_dir}/smali_classes{i}/{extract_class_name(ori_caller)}.smali")
+        print("insert code")
         i+=1
         smali_path = f"{smali_dir}/smali_classes{i}/{extract_class_name(ori_caller)}.smali"
     with open(smali_path, 'r') as f:
@@ -383,6 +399,15 @@ def execute_action(action, tmp_dir, apk_path, inject_activity_name, inject_recei
 
 
 def AdvDroidZero_attacker(apk, model, query_budget, output_result_dir,perturbation_selector,logger):
+    if os.path.exists(os.path.join(output_result_dir, "fail", apk.name.split('.')[0])):
+        print(f"{apk.name} already being attacked.\n")
+        return 
+    if os.path.exists(os.path.join(output_result_dir, "success", apk.name.split('.')[0])):
+        print(f"{apk.name} already being attacked.\n")
+        return 
+    if os.path.exists(os.path.join(output_result_dir, "modification_crash", apk.name.split('.')[0])):
+        print(f"{apk.name} already being attacked.\n")
+        return 
     out = ""
     logging.info(green('Begin Attacking APK:{}'.format(apk.name)))
     out+='Begin Attacking APK:{}\n'.format(apk.name)
@@ -461,14 +486,15 @@ def AdvDroidZero_attacker(apk, model, query_budget, output_result_dir,perturbati
     for attempt_idx in range(query_budget):
         # 随机选择一个action
         # action = PerturbationSelector.get_action()
-        action =perturbation_selector.select_random_action(apk.cluster,ori_apis,ori_callers,ori_calls)
+        action,res =perturbation_selector.select_random_action(apk.cluster,ori_apis,ori_callers,ori_calls)
         if action == None:
             logging.info(red("Action is None ----- APK: {}".format(apk.name)))
             out+="Action is None ----- APK: {}\n".format(apk.name)
             modification_crash = True
             break
-        logging.info(green("Query {} selects action:{} ----- APK: {}".format(attempt_idx,f"{action.caller}-->{action.callee}",apk.name)))
-        out+="Query {} selects action:{} with weight:{} ----- APK: {}\n".format(attempt_idx,f"{action.caller}-->{action.callee}",action.weight,apk.name)
+        out+=res
+        logging.info(green("Query {} selects action:{} ----- APK: {}".format(attempt_idx,f"{action.caller}->{action.callee}",apk.name)))
+        out+="Query {} selects action:{} with weight:{} ----- APK: {}\n".format(attempt_idx,f"{action.caller}->{action.callee}",action.weight,apk.name)
         # execute the action
         # 将action插入原apk
         # res, backup_dir, process_dir = execute_action(action, tmp_dir, copy_apk_path, inject_activity_name,
@@ -480,17 +506,15 @@ def AdvDroidZero_attacker(apk, model, query_budget, output_result_dir,perturbati
         
         os.makedirs(backup_dir, exist_ok=True)
         os.makedirs(process_dir, exist_ok=True)
-        api = random.choice(ori_callers)
-
-
         if action.caller in ori_callers:
             logging.info(green("Query {} try to insert a invoke.".format(attempt_idx)))
             out+="Query {} try to insert a invoke.\n".format(attempt_idx)
             res = insert_invoke(action,parse_dir, copy_apk_path,backup_dir,process_dir)
-        else:                                                         
+        else:           
+            api = random.choice(ori_callers)                                              
             # res = insert_method(api,action,parse_dir, copy_apk_path,backup_dir,process_dir)
             logging.info(green("Query {} try to insert a smali.".format(attempt_idx)))
-            out+="Query {} try to insert a smali.\n".format(attempt_idx)
+            out+="Query {} try to insert a smali, with the help of {}.\n".format(attempt_idx,api)
             res = insert_smali(api,action,parse_dir, copy_apk_path,backup_dir,process_dir)
 
         if not res:
@@ -550,10 +574,12 @@ def AdvDroidZero_attacker(apk, model, query_budget, output_result_dir,perturbati
         # 如果攻击后的置信度小于攻击前的置信度，那么这个扰动有效
         perturbation_results = next_confidence- prev_confidence
         if next_confidence < prev_confidence - 1e-4:
-            if next_confidence < prev_confidence - 1e-1:
-                logger.critical(green("action in cluster {}: {} with weight: {} decrease confidence {}".format(action.cluster,f"{action.caller}->{action.callee}",action.weight,next_confidence- prev_confidence)))
-            prev_confidence = next_confidence
+            ori_calls.append(f"{action.caller}--->{action.callee}")
+            weight_bef = action.weight
             perturbation_selector.update_candidate_call_pro(apk.cluster,action, perturbation_results)
+            if next_confidence < prev_confidence - 1e-1:
+                logger.critical(green(" action in cluster {}: {} with weight: {} decrease confidence {}, weight after update: {}".format(action.cluster,f"{action.caller}->{action.callee}",weight_bef,next_confidence- prev_confidence,action.weight)))
+            prev_confidence = next_confidence
             # 将插入后的反编译目录进行备份
             shutil.rmtree(backup_parse_dir)
             shutil.copytree(parse_dir,backup_parse_dir)
@@ -582,7 +608,7 @@ def AdvDroidZero_attacker(apk, model, query_budget, output_result_dir,perturbati
 
     # 重置已选择
     perturbation_selector.reset_selected()
-        
+    print(perturbation_selector.selected_nodes)
     end_time = time.time()
     if success:
         logging.info(green("Attack Success ----- APK: {}".format(apk.name)))

@@ -56,7 +56,7 @@ config = {
     # Misc
     'nproc_feature': 10,
     'nproc_slicer': 10,
-    'nproc_attacker': 10,
+    'nproc_attacker': 15,
     'sign': False,
     'extract_feature': False,  # Extract the feature
     'prepare_dataset':False,
